@@ -38,6 +38,9 @@ Some of Simple JWT's behavior can be customized through settings variables in
       'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
       'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
       'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+
+      'DYNAMIC_AUDIENCE_HEADER_FIELD': 'HTTP_ORIGIN',
+      'ALLOW_NO_AUDIENCE': False,
   }
 
 Above, the default values for these settings are shown.
@@ -121,6 +124,12 @@ The audience claim to be included in generated tokens and/or validated in
 decoded tokens. When set to ``None``, this field is excluded from tokens and is
 not validated.
 
+If set to ``Dynamic``, the Dynamic Audience system is enabled and may be
+further configured through ``DYNAMIC_AUDIENCE_HEADER_FIELD`` and
+``ALLOW_NO_AUDIENCE`` to establish the content of the audience claim and
+what should be verified against.
+
+
 ``ISSUER``
 ----------
 
@@ -199,3 +208,47 @@ More about this in the "Sliding tokens" section below.
 
 The claim name that is used to store the expiration time of a sliding token's
 refresh period.  More about this in the "Sliding tokens" section below.
+
+``DYNAMIC_AUDIENCE_HEADER_FIELD``
+---------------------------------
+
+value to be passed to META.get() method on request object to retrieve the value
+to be used in the AUD claim on creation of JWT and to obtain value for
+comparison. Considering making this support a list of headers that can be
+selected from as my read of the specification for JWT indicates AUD can be a
+list of strings that any one matching from the client request to the AUD claim
+provides a match.
+
+The current implementation doesn't provide handling for multiple audience claim
+strings to be configured however an endpoint can have a list of allowed
+audience claims that the token provided audience claim will be checked against.
+
+The default value ``HTTP_ORIGIN`` selects the Django mapping of the ``origin``
+HTTP header automatically added by browsers when making an HTTP request and
+the contents of this header is the FQDN string of the source domain without any
+path information included (as opposed to the referrer header which contains url
+path.
+
+This header is not automatically added by clients such as postman (as these
+do not have an FQDN for their origin however the origin header can be added
+manually to allow testing against this system if ``Dynamic`` audience is
+enabled.
+
+``ALLOW_NO_AUDIENCE``
+---------------------
+
+A value of true allows a JWT with no audience claim to be accepted when
+processing authentication of the supplied token. If set to False (default) (and
+AUDIENCE is not None) then any token received missing AUD as a claim will be
+immediately rejected as an invalid token (even if its signature would pass) and
+if none of the DYNAMIC_AUDIENCE_HEADER_FIELD entries above provided a header
+value then generating the token would fail (testing and failing on both to
+ensure that any change in policy is effected before tokens expire and to
+prevent a token generated with the same SIGNING_KEY being validated even if it
+was allowed to be generated on another system). It is not advised to set this
+to True except during a migration window where tokens generated beforehand
+should be accepted or where only a new set of API endpoints are being added
+that would require AUD claims and existing endpoints aren't being retrofitted.
+The signature will still be checked and provided the SIGNING_KEY hasn't leaked
+this should prevent people minting their own tokens even if the AUD is allowed
+to pass.
