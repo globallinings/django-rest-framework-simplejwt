@@ -223,11 +223,18 @@ The current implementation doesn't provide handling for multiple audience claim
 strings to be configured however an endpoint can have a list of allowed
 audience claims that the token provided audience claim will be checked against.
 
-The default value ``HTTP_ORIGIN`` selects the Django mapping of the ``origin``
-HTTP header automatically added by browsers when making an HTTP request and
-the contents of this header is the FQDN string of the source domain without any
-path information included (as opposed to the referrer header which contains url
-path.
+The default value ``Origin`` HTTP header automatically added by browsers when
+making an HTTP request and the contents of this header is the FQDN string of
+the source domain without any path information included (as opposed to the
+referrer header which contains url path details).
+
+When working with this for verifying permission against a viewset or otherwise
+inside django rest framework you may need to use
+``request.META.get('HTTP_ORIGIN', None)`` as Django translates almost all
+http headers by converting them to all capital letters and prefixing ``HTTP_``
+to them so the default ``Origin`` header becomes ``HTTP_ORIGIN`` when placed
+in the request META dictionary. The dynamic audience system expects the field
+is an http header and so will translate this value for authentication.
 
 This header is not automatically added by clients such as postman (as these
 do not have an FQDN for their origin however the origin header can be added

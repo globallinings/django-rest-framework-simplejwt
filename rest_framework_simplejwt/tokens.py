@@ -20,7 +20,7 @@ class Token:
     token_type = None
     lifetime = None
 
-    def __init__(self, token=None, verify=True):
+    def __init__(self, token=None, dynamic_aud=None, verify=True):
         """
         !!!! IMPORTANT !!!! MUST raise a TokenError with a user-facing error
         message if the given token is invalid, expired, or otherwise not safe
@@ -31,6 +31,9 @@ class Token:
 
         self.token = token
         self.current_time = aware_utcnow()
+        self.dynamic_aud = dynamic_aud
+        print('token __init__')
+        print(self.dynamic_aud)
 
         # Set up token
         if token is not None:
@@ -39,7 +42,7 @@ class Token:
 
             # Decode token
             try:
-                self.payload = token_backend.decode(token, verify=verify)
+                self.payload = token_backend.decode(token, dynamic_aud, verify=verify)
             except TokenBackendError:
                 raise TokenError(_('Token is invalid or expired'))
 
@@ -78,6 +81,8 @@ class Token:
         Signs and returns a token as a base64 encoded string.
         """
         from .state import token_backend
+
+        print(repr(self.payload))
 
         return token_backend.encode(self.payload)
 
@@ -153,7 +158,7 @@ class Token:
             raise TokenError(format_lazy(_("Token '{}' claim has expired"), claim))
 
     @classmethod
-    def for_user(cls, user):
+    def for_user(cls, user, context=None):
         """
         Returns an authorization token for the given user that will be provided
         after authenticating the user's credentials.
@@ -164,6 +169,19 @@ class Token:
 
         token = cls()
         token[api_settings.USER_ID_CLAIM] = user_id
+        dynamic_enabled = api_settings.AUDIENCE == "Dynamic"
+        dynamic_string = context['request'].headers.get(
+                api_settings.DYNAMIC_AUDIENCE_HEADER_FIELD,
+                None
+            )
+
+        if dynamic_enabled and dynamic_string:
+            token['aud'] = dynamic_string
+            print(token['aud'])
+        elif api_settings.AUDIENCE is not None and not dynamic_enabled:
+            token['aud'] = api_settings.AUDIENCE
+        elif dynamic_enabled and not api_settings.ALLOW_NO_AUDIENCE:
+            raise TokenError(_('Missing dynamic audience header value'))
 
         return token
 
@@ -211,11 +229,11 @@ class BlacklistMixin:
             return BlacklistedToken.objects.get_or_create(token=token)
 
         @classmethod
-        def for_user(cls, user):
+        def for_user(cls, user, context=None):
             """
             Adds this token to the outstanding token list.
             """
-            token = super().for_user(user)
+            token = super().for_user(user, context)
 
             jti = token[api_settings.JTI_CLAIM]
             exp = token['exp']

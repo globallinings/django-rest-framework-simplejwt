@@ -32,7 +32,11 @@ class JWTAuthentication(authentication.BaseAuthentication):
         if raw_token is None:
             return None
 
-        validated_token = self.get_validated_token(raw_token)
+        dynamic_audience_string = self.get_dynamic_audience(request)
+        print(dynamic_audience_string)
+        print(api_settings.ISSUER)
+
+        validated_token = self.get_validated_token(raw_token, dynamic_audience_string)
 
         return self.get_user(validated_token), validated_token
 
@@ -78,7 +82,15 @@ class JWTAuthentication(authentication.BaseAuthentication):
 
         return parts[1]
 
-    def get_validated_token(self, raw_token):
+    def get_dynamic_audience(self, request):
+
+        header = f'HTTP_{api_settings.DYNAMIC_AUDIENCE_HEADER_FIELD.upper()}'
+        print(header)
+        print(request.META.keys())
+
+        return request.META.get(header, None)
+
+    def get_validated_token(self, raw_token, dynamic_audience=None):
         """
         Validates an encoded JSON web token and returns a validated token
         wrapper object.
@@ -86,7 +98,7 @@ class JWTAuthentication(authentication.BaseAuthentication):
         messages = []
         for AuthToken in api_settings.AUTH_TOKEN_CLASSES:
             try:
-                return AuthToken(raw_token)
+                return AuthToken(raw_token, dynamic_audience)
             except TokenError as e:
                 messages.append({'token_class': AuthToken.__name__,
                                  'token_type': AuthToken.token_type,

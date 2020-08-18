@@ -30,6 +30,12 @@ class TokenObtainSerializer(serializers.Serializer):
         self.fields[self.username_field] = serializers.CharField()
         self.fields['password'] = PasswordField()
 
+        self.DYNAMIC_AUD_STRING = self.context['request'].headers.get(
+            api_settings.DYNAMIC_AUDIENCE_HEADER_FIELD,
+            None
+        )
+        print(self.DYNAMIC_AUD_STRING)
+
     def validate(self, attrs):
         authenticate_kwargs = {
             self.username_field: attrs[self.username_field],
@@ -64,13 +70,15 @@ class TokenObtainSerializer(serializers.Serializer):
 
 class TokenObtainPairSerializer(TokenObtainSerializer):
     @classmethod
-    def get_token(cls, user):
-        return RefreshToken.for_user(user)
+    def get_token(cls, user, context):
+        print(dir(context))
+        print(context['request'].headers.keys())
+        return RefreshToken.for_user(user, context)
 
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        refresh = self.get_token(self.user)
+        refresh = self.get_token(self.user, self.context)
 
         data['refresh'] = str(refresh)
         data['access'] = str(refresh.access_token)
@@ -80,13 +88,13 @@ class TokenObtainPairSerializer(TokenObtainSerializer):
 
 class TokenObtainSlidingSerializer(TokenObtainSerializer):
     @classmethod
-    def get_token(cls, user):
-        return SlidingToken.for_user(user)
+    def get_token(cls, user, context):
+        return SlidingToken.for_user(user, context)
 
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        token = self.get_token(self.user)
+        token = self.get_token(self.user, self.context)
 
         data['token'] = str(token)
 
@@ -97,7 +105,13 @@ class TokenRefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
     def validate(self, attrs):
-        refresh = RefreshToken(attrs['refresh'])
+        refresh = RefreshToken(
+            attrs['refresh'],
+            dynamic_aud=self.context['request'].headers.get(
+                api_settings.DYNAMIC_AUDIENCE_HEADER_FIELD,
+                None
+            )
+        )
 
         data = {'access': str(refresh.access_token)}
 
