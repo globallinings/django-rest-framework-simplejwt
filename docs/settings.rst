@@ -39,7 +39,7 @@ Some of Simple JWT's behavior can be customized through settings variables in
       'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
       'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 
-      'DYNAMIC_AUDIENCE_HEADER_FIELD': 'HTTP_ORIGIN',
+      'DYNAMIC_AUDIENCE_HEADER_FIELD': 'Origin',
       'ALLOW_NO_AUDIENCE': False,
   }
 

@@ -71,20 +71,44 @@ class TokenBackend:
         # Therefore we retest the decode with an explicit non verification of audience claim to ensure
         # that the token otherwise still validates (audience check is currently last but explicit check)
         except (MissingRequiredClaimError, InvalidAudienceError):
-            print('hit missing require claim flow')
             if self.allow_no_audience:
-                print('passed allow no audience check')
                 # Consider throwing warning here to remind users they are running in an insecure mode
                 # designed only for use during transitions to using or removing dynamic audience
                 try:
                     return jwt.decode(token, self.verifying_key, algorithms=[self.algorithm], verify=verify,
                                       audience=None, issuer=self.issuer, options={'verify_aud': True})
                 except InvalidTokenError:
-                    print('Thrown error at audience allowance')
                     raise TokenBackendError(_('Token is invalid or expired'))
             else:
                 raise TokenBackendError(_('Token is invalid or expired'))
-        except InvalidTokenError as e:
-            print('failed outer catch')
-            print(e)
+        except InvalidTokenError:
+            raise TokenBackendError(_('Token is invalid or expired'))
+
+    def validate_audience(self, token, acceptable_audience, verify=True):
+        """
+        Verifies if the token provided has an aud claim that matches an
+        accepted audience value
+
+        Raises a `TokenBackendError` if the token is malformed (shouldn't
+        occur as this should have been caught during authentication, if its
+        signature check fails (as above for malformed), or if its 'exp' claim
+        indicates it has expired (this should only be a low risk as the time
+        between checks should be very small), or if no list of acceptable
+        audience is provided or if the tokens aud claim doesnt match any
+        provided acceptable claims.
+
+        This decode is similar to the original decode method however it is now
+        separated specifically to validate audiences and ignores the allow no
+        audience configuration setting as this is designed to be used by
+        permission checkers with a requirement that aud is present as a claim
+        and that it matches an allowed list of strings
+        """
+        if not isinstance(acceptable_audience, (str, list, tuple)):
+            raise TokenBackendError(_('Invalid format for acceptable_audience'))
+
+        try:
+            return jwt.decode(token, self.verifying_key, algorithms=[self.algorithm], verify=verify,
+                              audience=acceptable_audience, issuer=self.issuer,
+                              options={'verify_aud': True})
+        except InvalidTokenError:
             raise TokenBackendError(_('Token is invalid or expired'))
